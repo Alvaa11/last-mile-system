@@ -68,13 +68,13 @@ class DeliveryListPage extends StatelessWidget {
             child: Icon(Icons.location_on, color: Color(0xFFF97316)),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Cliente Exemplo $index', 
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Text('Rua das Flores, 123 - Centro', 
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                const Text('Rua das Flores, 123 - Centro', 
                   style: TextStyle(color: Colors.white54, fontSize: 14)),
               ],
             ),

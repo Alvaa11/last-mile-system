@@ -12,13 +12,19 @@ import { TrackingModule } from './tracking/tracking.module';
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT) || 5432,
-      username: process.env.DB_USERNAME || 'postgres',
-      password: process.env.DB_PASSWORD || 'postgres_password',
-      database: process.env.DB_DATABASE || 'lastmile_db',
+      host: 'aws-1-us-west-1.pooler.supabase.com',
+      port: 6543,
+      username: 'postgres.jqscwqnmkutkmvtejdyw',
+      password: 'Iamnotafraid1!',
+      database: 'postgres',
       autoLoadEntities: true,
-      synchronize: true, // Warn: Only for development
+      synchronize: true,
+      ssl: true,
+      extra: {
+        ssl: {
+          rejectUnauthorized: false,
+        },
+      },
       logging: ['error', 'warn'],
     }),
     AuthModule,

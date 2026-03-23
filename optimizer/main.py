@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import List
 import uvicorn
-from .solver import solve_vrp
+from solver import solve_vrp
 
 app = FastAPI(title="Last Mile Optimizer")
 

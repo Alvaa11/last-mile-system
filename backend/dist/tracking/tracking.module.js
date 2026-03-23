@@ -8,13 +8,10 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TrackingModule = void 0;
 const common_1 = require("@nestjs/common");
-const tracking_gateway_1 = require("./tracking.gateway");
 let TrackingModule = class TrackingModule {
 };
 exports.TrackingModule = TrackingModule;
 exports.TrackingModule = TrackingModule = __decorate([
-    (0, common_1.Module)({
-        providers: [tracking_gateway_1.TrackingGateway],
-    })
+    (0, common_1.Module)({})
 ], TrackingModule);
 //# sourceMappingURL=tracking.module.js.map
