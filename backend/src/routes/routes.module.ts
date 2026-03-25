@@ -1,4 +1,13 @@
 import { Module } from '@nestjs/common';
+import { RoutesController } from './routes.controller';
+import { RoutesService } from './routes.service';
 
-@Module({})
-export class RoutesModule {}
+@Module({
+  controllers: [RoutesController],
+  providers: [RoutesService],
+})
+export class RoutesModule {
+  constructor() {
+    console.log('RoutesModule initialization');
+  }
+}

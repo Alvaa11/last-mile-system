@@ -34,4 +34,8 @@ import { TrackingModule } from './tracking/tracking.module';
     TrackingModule,
   ],
 })
-export class AppModule {}
+export class AppModule {
+  constructor() {
+    console.log('AppModule initialization');
+  }
+}
