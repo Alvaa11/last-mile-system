@@ -24,7 +24,7 @@ export class Delivery {
     srid: 4326,
     nullable: true,
   })
-  location: string; // Will store as 'POINT(lng lat)'
+  location: any; // Stored as geography, returned as object/string
 
   @Column({
     type: 'enum',

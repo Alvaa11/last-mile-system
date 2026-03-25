@@ -26,9 +26,8 @@ __decorate([
     __metadata("design:type", String)
 ], CreateDeliveryDto.prototype, "address", void 0);
 __decorate([
-    (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], CreateDeliveryDto.prototype, "location", void 0);
 __decorate([
     (0, class_validator_1.IsNumber)(),
@@ -49,8 +48,7 @@ __decorate([
     __metadata("design:type", String)
 ], UpdateDeliveryDto.prototype, "status", void 0);
 __decorate([
-    (0, class_validator_1.IsString)(),
     (0, class_validator_1.IsOptional)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], UpdateDeliveryDto.prototype, "currentCoords", void 0);
 //# sourceMappingURL=delivery.dto.js.map

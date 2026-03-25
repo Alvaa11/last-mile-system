@@ -8,7 +8,7 @@ export declare class Delivery {
     id: string;
     customerName: string;
     address: string;
-    location: string;
+    location: any;
     status: DeliveryStatus;
     priority: number;
     qrCodeId: string;

@@ -40,7 +40,7 @@ __decorate([
         srid: 4326,
         nullable: true,
     }),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], Delivery.prototype, "location", void 0);
 __decorate([
     (0, typeorm_1.Column)({

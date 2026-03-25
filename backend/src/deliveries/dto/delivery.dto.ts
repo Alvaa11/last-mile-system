@@ -10,9 +10,8 @@ export class CreateDeliveryDto {
   @IsNotEmpty()
   address: string;
 
-  @IsString()
   @IsOptional()
-  location?: string; // Format: "POINT(lng lat)"
+  location?: any; // Accept GeoJSON object or string
 
   @IsNumber()
   @IsOptional()
@@ -28,7 +27,6 @@ export class UpdateDeliveryDto {
   @IsOptional()
   status?: DeliveryStatus;
 
-  @IsString()
   @IsOptional()
-  currentCoords?: string; // For status update auditing
+  currentCoords?: any; // For status update auditing
 }
