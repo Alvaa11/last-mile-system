@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:last_mile_mobile/core/utils/map_launcher_utils.dart';
 import 'package:last_mile_mobile/core/state/delivery_cubit.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/manual_delivery_sheet.dart';
+import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_confirmation_sheet.dart';
 
 class DeliveryListPage extends StatefulWidget {
   const DeliveryListPage({super.key});
@@ -53,38 +54,22 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F172A),
+      // ── Hamburger drawer ─────────────────────────────────────────
+      drawer: _buildDrawer(context),
       appBar: AppBar(
         title: const Text('Minhas Entregas'),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_location_alt, color: Colors.white),
-            tooltip: 'Adicionar Manualmente',
-            onPressed: () {
-               showModalBottomSheet(
-                 context: context,
-                 isScrollControlled: true,
-                 backgroundColor: Colors.transparent,
-                 builder: (_) => BlocProvider.value(
-                    value: context.read<DeliveryCubit>(),
-                     child: const ManualDeliverySheet(),
-                 ),
-               );
-            },
+        // Hamburger icon — calls Scaffold.of() via Builder to open the drawer
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            tooltip: 'Menu',
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
-          IconButton(
-            icon: const Icon(Icons.bolt, color: Color(0xFFF97316)),
-            tooltip: 'Otimizar Rota',
-            onPressed: () {
-               ScaffoldMessenger.of(context).showSnackBar(
-                 const SnackBar(content: Text('Conectando ao Otimizador de Rotas...')),
-               );
-               _handleOptimize();
-            },
-          ),
-        ],
+        ),
       ),
+      // No FloatingActionButton — moved into the drawer
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -107,10 +92,83 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/scan'),
-        label: const Text('Escanear Pacote'),
-        icon: const Icon(Icons.qr_code_scanner),
+    );
+  }
+
+  /// Side drawer with all secondary actions.
+  Widget _buildDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: const Color(0xFF1E293B),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 8, 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Ações',
+                    style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white54),
+                    tooltip: 'Fechar menu',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: Colors.white12, height: 1),
+            const SizedBox(height: 8),
+
+            // ── Escanear Pacote ──────────────────────────────────────
+            _DrawerItem(
+              icon: Icons.qr_code_scanner,
+              label: 'Escanear Pacote',
+              iconColor: const Color(0xFFF97316),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.go('/scan');
+              },
+            ),
+
+            // ── Adicionar Manualmente ────────────────────────────────
+            _DrawerItem(
+              icon: Icons.add_location_alt,
+              label: 'Adicionar Manualmente',
+              iconColor: Colors.white,
+              onTap: () {
+                Navigator.of(context).pop();
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => BlocProvider.value(
+                    value: context.read<DeliveryCubit>(),
+                    child: const ManualDeliverySheet(),
+                  ),
+                );
+              },
+            ),
+
+            // ── Otimizar Rota ────────────────────────────────────────
+            _DrawerItem(
+              icon: Icons.bolt,
+              label: 'Otimizar Rota',
+              iconColor: const Color(0xFFF97316),
+              onTap: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Conectando ao Otimizador de Rotas...')),
+                );
+                _handleOptimize();
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -133,6 +191,8 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
         const SizedBox(height: 24),
         Expanded(
           child: ListView.separated(
+            // Extra bottom padding so the FAB (removed) no longer clips the last item
+            padding: const EdgeInsets.only(bottom: 16),
             itemCount: deliveries.length,
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (context, index) => _buildDeliveryCard(deliveries[index]),
@@ -186,13 +246,84 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
               ],
             ),
           ),
-          if (!isDelivered) 
+          if (!isDelivered)
             IconButton(
               icon: const Icon(Icons.check, color: Colors.green),
               tooltip: 'Marcar entregue',
-              onPressed: () {
-                 context.read<DeliveryCubit>().updateStatus(delivery['id'], 'DELIVERED');
-                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Atualizando status no servidor...')));
+              onPressed: () async {
+                // 1. Show confirmation sheet and wait for result
+                final notes = await showModalBottomSheet<String?>(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => DeliveryConfirmationSheet(
+                    customerName: delivery['customerName'] ?? 'Cliente',
+                    address: delivery['address'] ?? '',
+                  ),
+                );
+
+                // User cancelled
+                if (notes == null || !mounted) return;
+
+                // 2. Mark as delivered (with optional notes)
+                await context.read<DeliveryCubit>().updateStatus(
+                  delivery['id'],
+                  'DELIVERED',
+                  notes: notes.isNotEmpty ? notes : null,
+                );
+                if (!mounted) return;
+
+                // 3. Find next pending delivery for auto-advance
+                final state = context.read<DeliveryCubit>().state;
+                dynamic nextDelivery;
+                if (state is DeliveryLoaded) {
+                  try {
+                    nextDelivery = state.deliveries.firstWhere(
+                      (d) => d['id'] != delivery['id'] && d['status'] != 'DELIVERED',
+                    );
+                  } catch (_) {
+                    nextDelivery = null;
+                  }
+                }
+
+                if (nextDelivery != null) {
+                  final location = nextDelivery['location'];
+                  double lat = -23.5505;
+                  double lon = -46.6333;
+                  if (location != null && location is Map && location['coordinates'] != null) {
+                    final coords = location['coordinates'] as List;
+                    if (coords.length >= 2) {
+                      lon = (coords[0] as num).toDouble();
+                      lat = (coords[1] as num).toDouble();
+                    }
+                  }
+                  final captureLat = lat;
+                  final captureLon = lon;
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('✅ Entregue! Próxima: ${nextDelivery['customerName']}'),
+                      backgroundColor: const Color(0xFF1E293B),
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 6),
+                      action: SnackBarAction(
+                        label: 'Navegar',
+                        textColor: const Color(0xFFF97316),
+                        onPressed: () => MapLauncherUtils.openGoogleMapsNavigation(
+                          context, captureLat, captureLon,
+                        ),
+                      ),
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('🎉 Todas as entregas concluídas!'),
+                      backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               },
             ),
         ],
@@ -244,7 +375,7 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
                 MapLauncherUtils.openGoogleMapsNavigation(context, lat, lon);
               },
               icon: const Icon(Icons.navigation),
-              label: const Text('Navegar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              label: const Text('Ir para Próxima Entrega', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF97316),
                 foregroundColor: Colors.white,
@@ -272,6 +403,33 @@ class _SummaryItem extends StatelessWidget {
         Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
         Text(label, style: const TextStyle(fontSize: 12, color: Colors.white54)),
       ],
+    );
+  }
+}
+
+/// A single tappable row inside the side drawer.
+class _DrawerItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color iconColor;
+  final VoidCallback onTap;
+
+  const _DrawerItem({
+    required this.icon,
+    required this.label,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(icon, color: iconColor),
+      title: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15)),
+      splashColor: Colors.white10,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      onTap: onTap,
     );
   }
 }

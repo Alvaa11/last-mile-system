@@ -69,9 +69,9 @@ class DeliveryCubit extends Cubit<DeliveryState> {
     }
   }
 
-  Future<void> updateStatus(String id, String status) async {
+  Future<void> updateStatus(String id, String status, {String? notes}) async {
     try {
-      await deliveryRepo.updateStatus(id, status);
+      await deliveryRepo.updateStatus(id, status, notes: notes);
       await loadDeliveries(); // Reload to reflect changes
     } catch (e) {
       emit(DeliveryError(e.toString()));
