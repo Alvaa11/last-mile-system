@@ -157,7 +157,12 @@ class _DeliveryHistorySheetState extends State<DeliveryHistorySheet> {
       itemBuilder: (context, index) {
         final item = _history![index];
         final isDelivered = item['status'] == 'DELIVERED';
-        final date = DateTime.tryParse(item['timestamp'] ?? '');
+        final isFailed = item['status'] == 'FAILED';
+        String tsString = item['timestamp'] ?? '';
+        if (tsString.isNotEmpty && !tsString.endsWith('Z')) {
+          tsString += 'Z';
+        }
+        final date = DateTime.tryParse(tsString)?.toLocal().subtract(const Duration(hours: 3));
         final formattedDate = date != null
             ? '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')} às ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}'
             : '';
@@ -169,13 +174,17 @@ class _DeliveryHistorySheetState extends State<DeliveryHistorySheet> {
               margin: const EdgeInsets.only(top: 4),
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: isDelivered ? Colors.green.withOpacity(0.15) : Colors.white10,
+                color: isDelivered 
+                    ? Colors.green.withValues(alpha: 0.15) 
+                    : isFailed 
+                        ? Colors.redAccent.withValues(alpha: 0.15) 
+                        : Colors.white10,
                 shape: BoxShape.circle,
               ),
               child: Icon(
-                isDelivered ? Icons.check : Icons.circle,
+                isDelivered ? Icons.check : isFailed ? Icons.close : Icons.circle,
                 size: 14,
-                color: isDelivered ? Colors.green : Colors.white54,
+                color: isDelivered ? Colors.green : isFailed ? Colors.redAccent : Colors.white54,
               ),
             ),
             const SizedBox(width: 16),
@@ -186,7 +195,11 @@ class _DeliveryHistorySheetState extends State<DeliveryHistorySheet> {
                   color: const Color(0xFF0F172A),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isDelivered ? Colors.green.withOpacity(0.3) : Colors.white10,
+                    color: isDelivered 
+                        ? Colors.green.withValues(alpha: 0.3) 
+                        : isFailed 
+                            ? Colors.redAccent.withValues(alpha: 0.3) 
+                            : Colors.white10,
                   ),
                 ),
                 child: Column(
@@ -198,12 +211,14 @@ class _DeliveryHistorySheetState extends State<DeliveryHistorySheet> {
                         Text(
                           item['status'] == 'DELIVERED'
                               ? 'Entregue'
-                              : item['status'] == 'IN_TRANSIT'
-                                  ? 'Em Rota'
-                                  : 'Pendente',
+                              : item['status'] == 'FAILED'
+                                  ? 'Falha na Entrega'
+                                  : item['status'] == 'IN_TRANSIT'
+                                      ? 'Em Rota'
+                                      : 'Pendente',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: isDelivered ? Colors.green : Colors.white,
+                            color: isDelivered ? Colors.green : isFailed ? Colors.redAccent : Colors.white,
                           ),
                         ),
                         Text(
@@ -218,7 +233,7 @@ class _DeliveryHistorySheetState extends State<DeliveryHistorySheet> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
+                          color: Colors.white.withValues(alpha: 0.05),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.white10),
                         ),

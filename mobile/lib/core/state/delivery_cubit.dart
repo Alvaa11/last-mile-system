@@ -61,7 +61,34 @@ class DeliveryCubit extends Cubit<DeliveryState> {
       emit(DeliveryLoading());
       try {
         final optimizedList = await routeRepo.optimizeRoute(payload);
-        emit(DeliveryLoaded(optimizedList, isOptimized: true));
+        
+        // 1. Extrair a ordem dos IDs otimizada pelo backend
+        final List<String> optimizedIds = (optimizedList as List)
+            .map((item) => item['id'].toString())
+            .where((id) => id != 'depot')
+            .toList();
+
+        // 2. Pegar todas as entregas do estado atual
+        final allDeliveries = List<dynamic>.from(currentState.deliveries);
+        
+        // 3. Separar as pendentes (que foram otimizadas) das demais
+        final pending = allDeliveries.where((d) => d['status'] == 'PENDING').toList();
+        final others = allDeliveries.where((d) => d['status'] != 'PENDING').toList();
+
+        // 4. Reordenar as pendentes com base nos IDs otimizados
+        pending.sort((a, b) {
+            final aIndex = optimizedIds.indexOf(a['id'].toString());
+            final bIndex = optimizedIds.indexOf(b['id'].toString());
+            if (aIndex == -1 && bIndex == -1) return 0;
+            if (aIndex == -1) return 1;
+            if (bIndex == -1) return -1;
+            return aIndex.compareTo(bIndex);
+        });
+
+        // 5. Recombinar a lista final
+        final reorderedList = [...pending, ...others];
+
+        emit(DeliveryLoaded(reorderedList, isOptimized: true));
       } catch (e) {
         emit(DeliveryError(e.toString()));
         emit(DeliveryLoaded(currentState.deliveries)); // rollback

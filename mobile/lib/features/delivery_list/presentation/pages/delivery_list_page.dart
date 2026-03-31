@@ -6,6 +6,7 @@ import 'package:last_mile_mobile/core/state/delivery_cubit.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/manual_delivery_sheet.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_confirmation_sheet.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_history_sheet.dart';
+import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_failure_sheet.dart';
 
 class DeliveryListPage extends StatefulWidget {
   const DeliveryListPage({super.key});
@@ -27,9 +28,25 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
   void _handleOptimize() {
     final state = context.read<DeliveryCubit>().state;
     if (state is DeliveryLoaded && state.deliveries.isNotEmpty) {
+       final pendingDeliveries = state.deliveries.where((d) => d['status'] == 'PENDING').toList();
+       
+       if (pendingDeliveries.isEmpty) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           const SnackBar(
+             content: Text('Nenhuma entrega pendente para otimizar.'),
+             backgroundColor: Colors.orange,
+           ),
+         );
+         return;
+       }
+
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(content: Text('Conectando ao Otimizador de Rotas...')),
+       );
+
        final payload = {
           "depot": { "id": "depot", "latitude": -23.5505, "longitude": -46.6333 },
-          "deliveries": state.deliveries.map((e) {
+          "deliveries": pendingDeliveries.map((e) {
              final location = e['location'];
              double lat = -23.5505; 
              double lon = -46.6333;
@@ -50,6 +67,13 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
           }).toList()
        };
        context.read<DeliveryCubit>().optimizeRoute(payload);
+    } else {
+       ScaffoldMessenger.of(context).showSnackBar(
+         const SnackBar(
+           content: Text('Nenhuma entrega pendente para otimizar.'),
+           backgroundColor: Colors.orange,
+         ),
+       );
     }
   }
 
@@ -164,9 +188,6 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
               iconColor: const Color(0xFFF97316),
               onTap: () {
                 Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Conectando ao Otimizador de Rotas...')),
-                );
                 _handleOptimize();
               },
             ),
@@ -182,14 +203,14 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
     }
     
     final pending = deliveries.where((d) => d['status'] == 'PENDING').length;
-    final inTransit = deliveries.where((d) => d['status'] == 'IN_TRANSIT').length;
+    final failed = deliveries.where((d) => d['status'] == 'FAILED').length;
     final delivered = deliveries.where((d) => d['status'] == 'DELIVERED').length;
 
     final filteredDeliveries = deliveries.where((d) => d['status'] == _selectedTab).toList();
 
     return Column(
       children: [
-        _buildSummaryCard(pending, inTransit, delivered),
+        _buildSummaryCard(pending, failed, delivered),
         const SizedBox(height: 24),
         if (_selectedTab == 'PENDING' && filteredDeliveries.isNotEmpty) ...[
           _buildNextDeliveryHeader(context, filteredDeliveries.first),
@@ -211,7 +232,7 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
     );
   }
 
-  Widget _buildSummaryCard(int pending, int inTransit, int delivered) {
+  Widget _buildSummaryCard(int pending, int failed, int delivered) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
@@ -231,10 +252,10 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
           ),
           _SummaryItem(
             label: 'Não entregues', 
-            value: inTransit.toString(), 
+            value: failed.toString(), 
             color: Colors.redAccent,
-            isSelected: _selectedTab == 'IN_TRANSIT',
-            onTap: () => setState(() => _selectedTab = 'IN_TRANSIT'),
+            isSelected: _selectedTab == 'FAILED',
+            onTap: () => setState(() => _selectedTab = 'FAILED'),
           ),
           _SummaryItem(
             label: 'Entregues', 
@@ -250,14 +271,17 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
 
   Widget _buildDeliveryCard(dynamic delivery) {
     final bool isDelivered = delivery['status'] == 'DELIVERED';
+    final bool isFailed = delivery['status'] == 'FAILED';
     final String rawAddress = delivery['address'] ?? 'Endereço Indisponível';
     // Address is stored as "Rua X, 100, Cidade - Complemento"
     final List<String> addressParts = rawAddress.split(' - ');
     final String mainAddress = addressParts[0];
     final String? complement = addressParts.length > 1 ? addressParts.sublist(1).join(' - ') : null;
 
+    final bool isFinished = isDelivered || isFailed;
+
     return GestureDetector(
-      onTap: isDelivered
+      onTap: isFinished
           ? () {
               showModalBottomSheet(
                 context: context,
@@ -273,7 +297,11 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(12),
-          border: isDelivered ? Border.all(color: Colors.green.withOpacity(0.5)) : null,
+          border: isDelivered 
+              ? Border.all(color: Colors.green.withValues(alpha: 0.5)) 
+              : isFailed 
+                  ? Border.all(color: Colors.redAccent.withValues(alpha: 0.5))
+                  : null,
         ),
         child: Column(
           children: [
@@ -281,7 +309,10 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
               children: [
                 CircleAvatar(
                   backgroundColor: const Color(0xFF334155),
-                  child: Icon(isDelivered ? Icons.check_circle : Icons.location_on, color: isDelivered ? Colors.green : const Color(0xFFF97316)),
+                  child: Icon(
+                    isDelivered ? Icons.check_circle : isFailed ? Icons.error_outline : Icons.location_on, 
+                    color: isDelivered ? Colors.green : isFailed ? Colors.redAccent : const Color(0xFFF97316)
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -310,22 +341,59 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
                 ),
               ],
             ),
-            if (!isDelivered) ...[
+            if (!isFinished) ...[
               const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.check, size: 20),
-                  label: const Text('Confirmar Entrega', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.close, size: 20),
+                        label: const Text('Falha', style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () async {
+                          final notes = await showModalBottomSheet<String?>(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => DeliveryFailureSheet(
+                              customerName: delivery['customerName'] ?? 'Cliente',
+                              address: delivery['address'] ?? '',
+                            ),
+                          );
+
+                          if (notes == null || !mounted) return;
+
+                          await context.read<DeliveryCubit>().updateStatus(
+                            delivery['id'],
+                            'FAILED',
+                            notes: notes,
+                          );
+                        },
+                      ),
+                    ),
                   ),
-                  onPressed: () async {
-                    // 1. Show confirmation sheet and wait for result
-                    final notes = await showModalBottomSheet<String?>(
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 44,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.check, size: 20),
+                        label: const Text('Entregar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: () async {
+                          // 1. Show confirmation sheet and wait for result
+                          final notes = await showModalBottomSheet<String?>(
                       context: context,
                       isScrollControlled: true,
                       backgroundColor: Colors.transparent,
@@ -398,6 +466,32 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
                       );
                     }
                   },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+      if (isFailed) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    await context.read<DeliveryCubit>().updateStatus(
+                      delivery['id'],
+                      'PENDING',
+                      notes: 'Reagendado para nova tentativa',
+                    );
+                  },
+                  icon: const Icon(Icons.replay),
+                  label: const Text('Tentar Novamente', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white30),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
               ),
             ],
