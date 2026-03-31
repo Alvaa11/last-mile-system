@@ -4,5 +4,6 @@ export declare class DeliveryStatusHistory {
     delivery: Delivery;
     status: DeliveryStatus;
     coords: string;
+    notes: string;
     timestamp: Date;
 }

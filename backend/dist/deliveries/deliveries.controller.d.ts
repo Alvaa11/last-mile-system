@@ -5,6 +5,7 @@ export declare class DeliveriesController {
     constructor(deliveriesService: DeliveriesService);
     create(createDeliveryDto: CreateDeliveryDto): Promise<import("./entities/delivery.entity").Delivery>;
     findAll(): Promise<import("./entities/delivery.entity").Delivery[]>;
+    findHistory(id: string): Promise<import("./entities/delivery-status-history.entity").DeliveryStatusHistory[]>;
     findOne(id: string): Promise<import("./entities/delivery.entity").Delivery>;
     update(id: string, updateDeliveryDto: UpdateDeliveryDto): Promise<import("./entities/delivery.entity").Delivery>;
     remove(id: string): Promise<void>;

@@ -42,12 +42,20 @@ let DeliveriesService = class DeliveriesService {
             await this.historyRepository.save(this.historyRepository.create({
                 delivery,
                 status: updateDto.status,
-                coords: updateDto.currentCoords
+                coords: updateDto.currentCoords,
+                notes: updateDto.notes ?? null,
             }));
             delivery.status = updateDto.status;
         }
         Object.assign(delivery, updateDto);
         return this.repository.save(delivery);
+    }
+    async findHistory(id) {
+        const delivery = await this.findOne(id);
+        return this.historyRepository.find({
+            where: { delivery: { id: delivery.id } },
+            order: { timestamp: 'ASC' },
+        });
     }
     async remove(id) {
         const delivery = await this.findOne(id);

@@ -23,6 +23,10 @@ export class DeliveryStatusHistory {
   })
   coords: string;
 
+  @Column({ type: 'text', nullable: true })
+  notes: string;
+
   @CreateDateColumn()
   timestamp: Date;
 }
+

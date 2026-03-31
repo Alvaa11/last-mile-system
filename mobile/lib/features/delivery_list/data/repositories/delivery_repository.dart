@@ -13,6 +13,15 @@ class DeliveryRepository {
     }
   }
 
+  Future<List<dynamic>> fetchHistory(String id) async {
+    try {
+      final response = await _apiClient.dio.get('/deliveries/$id/history');
+      return response.data as List<dynamic>;
+    } catch (e) {
+      throw Exception('Erro ao buscar histórico: $e');
+    }
+  }
+
   Future<dynamic> createDelivery(String qrCodeData) async {
     try {
       // Mock Data to save in Postgres when scanning
@@ -42,13 +51,16 @@ class DeliveryRepository {
 
   Future<void> createManualDelivery(String name, String address) async {
     // 1. Geocoding via OpenStreetMap (Nominatim)
+    // Extrai o endereço sem o complemento para buscar as coordenadas com mais precisão
+    final String addressForGeo = address.split(' - ')[0];
+
     final osmDio = Dio();
     // User-Agent is required by Nominatim's usage policy
     osmDio.options.headers['User-Agent'] = 'RotasApp/1.0';
 
     final osmUrl =
         'https://nominatim.openstreetmap.org/search'
-        '?q=${Uri.encodeComponent(address)}'
+        '?q=${Uri.encodeComponent(addressForGeo)}'
         '&format=json&limit=1&countrycodes=br';
 
     try {
@@ -59,7 +71,7 @@ class DeliveryRepository {
           geoResponse.data is! List ||
           (geoResponse.data as List).isEmpty) {
         throw Exception(
-          'Endereço não encontrado: "$address".\n'
+          'Endereço não encontrado: "$addressForGeo".\n'
           'Verifique o endereço e tente novamente ou inclua a cidade '
           '(ex: "Rua X, 100, Campinas, SP").',
         );

@@ -18,6 +18,11 @@ export class DeliveriesController {
     return this.deliveriesService.findAll();
   }
 
+  @Get(':id/history')
+  findHistory(@Param('id') id: string) {
+    return this.deliveriesService.findHistory(id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.deliveriesService.findOne(id);
@@ -33,3 +38,4 @@ export class DeliveriesController {
     return this.deliveriesService.remove(id);
   }
 }
+

@@ -5,6 +5,7 @@ import 'package:last_mile_mobile/core/utils/map_launcher_utils.dart';
 import 'package:last_mile_mobile/core/state/delivery_cubit.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/manual_delivery_sheet.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_confirmation_sheet.dart';
+import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_history_sheet.dart';
 
 class DeliveryListPage extends StatefulWidget {
   const DeliveryListPage({super.key});
@@ -14,6 +15,8 @@ class DeliveryListPage extends StatefulWidget {
 }
 
 class _DeliveryListPageState extends State<DeliveryListPage> {
+  String _selectedTab = 'PENDING';
+
   @override
   void initState() {
     super.initState();
@@ -182,29 +185,35 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
     final inTransit = deliveries.where((d) => d['status'] == 'IN_TRANSIT').length;
     final delivered = deliveries.where((d) => d['status'] == 'DELIVERED').length;
 
+    final filteredDeliveries = deliveries.where((d) => d['status'] == _selectedTab).toList();
+
     return Column(
       children: [
         _buildSummaryCard(pending, inTransit, delivered),
         const SizedBox(height: 24),
-        if (deliveries.any((d) => d['status'] != 'DELIVERED')) 
-           _buildNextDeliveryHeader(context, deliveries.firstWhere((d) => d['status'] != 'DELIVERED')),
-        const SizedBox(height: 24),
-        Expanded(
-          child: ListView.separated(
-            // Extra bottom padding so the FAB (removed) no longer clips the last item
-            padding: const EdgeInsets.only(bottom: 16),
-            itemCount: deliveries.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) => _buildDeliveryCard(deliveries[index]),
+        if (_selectedTab == 'PENDING' && filteredDeliveries.isNotEmpty) ...[
+          _buildNextDeliveryHeader(context, filteredDeliveries.first),
+          const SizedBox(height: 24),
+        ],
+        if (filteredDeliveries.isEmpty)
+          const Expanded(child: Center(child: Text('Nenhuma entrega nesta categoria.', style: TextStyle(color: Colors.white54))))
+        else
+          Expanded(
+            child: ListView.separated(
+              // Extra bottom padding so the FAB (removed) no longer clips the last item
+              padding: const EdgeInsets.only(bottom: 16),
+              itemCount: filteredDeliveries.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => _buildDeliveryCard(filteredDeliveries[index]),
+            ),
           ),
-        ),
       ],
     );
   }
 
   Widget _buildSummaryCard(int pending, int inTransit, int delivered) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
         borderRadius: BorderRadius.circular(16),
@@ -213,9 +222,27 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _SummaryItem(label: 'Pendente', value: pending.toString(), color: Colors.orange),
-          _SummaryItem(label: 'Em Rota', value: inTransit.toString(), color: Colors.blue),
-          _SummaryItem(label: 'Concluído', value: delivered.toString(), color: Colors.green),
+          _SummaryItem(
+            label: 'Pendentes', 
+            value: pending.toString(), 
+            color: Colors.orange,
+            isSelected: _selectedTab == 'PENDING',
+            onTap: () => setState(() => _selectedTab = 'PENDING'),
+          ),
+          _SummaryItem(
+            label: 'Não entregues', 
+            value: inTransit.toString(), 
+            color: Colors.redAccent,
+            isSelected: _selectedTab == 'IN_TRANSIT',
+            onTap: () => setState(() => _selectedTab = 'IN_TRANSIT'),
+          ),
+          _SummaryItem(
+            label: 'Entregues', 
+            value: delivered.toString(), 
+            color: Colors.green,
+            isSelected: _selectedTab == 'DELIVERED',
+            onTap: () => setState(() => _selectedTab = 'DELIVERED'),
+          ),
         ],
       ),
     );
@@ -223,110 +250,159 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
 
   Widget _buildDeliveryCard(dynamic delivery) {
     final bool isDelivered = delivery['status'] == 'DELIVERED';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(12),
-        border: isDelivered ? Border.all(color: Colors.green.withOpacity(0.5)) : null,
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: const Color(0xFF334155),
-            child: Icon(isDelivered ? Icons.check_circle : Icons.location_on, color: isDelivered ? Colors.green : const Color(0xFFF97316)),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    final String rawAddress = delivery['address'] ?? 'Endereço Indisponível';
+    // Address is stored as "Rua X, 100, Cidade - Complemento"
+    final List<String> addressParts = rawAddress.split(' - ');
+    final String mainAddress = addressParts[0];
+    final String? complement = addressParts.length > 1 ? addressParts.sublist(1).join(' - ') : null;
+
+    return GestureDetector(
+      onTap: isDelivered
+          ? () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => DeliveryHistorySheet(delivery: delivery),
+              );
+            }
+          : null,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(12),
+          border: isDelivered ? Border.all(color: Colors.green.withOpacity(0.5)) : null,
+        ),
+        child: Column(
+          children: [
+            Row(
               children: [
-                Text(delivery['customerName'] ?? 'Cliente', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-                Text(delivery['address'] ?? 'Endereço Indisponível', style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                CircleAvatar(
+                  backgroundColor: const Color(0xFF334155),
+                  child: Icon(isDelivered ? Icons.check_circle : Icons.location_on, color: isDelivered ? Colors.green : const Color(0xFFF97316)),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(delivery['customerName'] ?? 'Cliente', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+                      Text(mainAddress, style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                      if (complement != null) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF97316).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: const Color(0xFFF97316).withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            complement,
+                            style: const TextStyle(color: Color(0xFFF97316), fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-          if (!isDelivered)
-            IconButton(
-              icon: const Icon(Icons.check, color: Colors.green),
-              tooltip: 'Marcar entregue',
-              onPressed: () async {
-                // 1. Show confirmation sheet and wait for result
-                final notes = await showModalBottomSheet<String?>(
-                  context: context,
-                  isScrollControlled: true,
-                  backgroundColor: Colors.transparent,
-                  builder: (_) => DeliveryConfirmationSheet(
-                    customerName: delivery['customerName'] ?? 'Cliente',
-                    address: delivery['address'] ?? '',
+            if (!isDelivered) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.check, size: 20),
+                  label: const Text('Confirmar Entrega', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   ),
-                );
-
-                // User cancelled
-                if (notes == null || !mounted) return;
-
-                // 2. Mark as delivered (with optional notes)
-                await context.read<DeliveryCubit>().updateStatus(
-                  delivery['id'],
-                  'DELIVERED',
-                  notes: notes.isNotEmpty ? notes : null,
-                );
-                if (!mounted) return;
-
-                // 3. Find next pending delivery for auto-advance
-                final state = context.read<DeliveryCubit>().state;
-                dynamic nextDelivery;
-                if (state is DeliveryLoaded) {
-                  try {
-                    nextDelivery = state.deliveries.firstWhere(
-                      (d) => d['id'] != delivery['id'] && d['status'] != 'DELIVERED',
-                    );
-                  } catch (_) {
-                    nextDelivery = null;
-                  }
-                }
-
-                if (nextDelivery != null) {
-                  final location = nextDelivery['location'];
-                  double lat = -23.5505;
-                  double lon = -46.6333;
-                  if (location != null && location is Map && location['coordinates'] != null) {
-                    final coords = location['coordinates'] as List;
-                    if (coords.length >= 2) {
-                      lon = (coords[0] as num).toDouble();
-                      lat = (coords[1] as num).toDouble();
-                    }
-                  }
-                  final captureLat = lat;
-                  final captureLon = lon;
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('✅ Entregue! Próxima: ${nextDelivery['customerName']}'),
-                      backgroundColor: const Color(0xFF1E293B),
-                      behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 6),
-                      action: SnackBarAction(
-                        label: 'Navegar',
-                        textColor: const Color(0xFFF97316),
-                        onPressed: () => MapLauncherUtils.openGoogleMapsNavigation(
-                          context, captureLat, captureLon,
-                        ),
+                  onPressed: () async {
+                    // 1. Show confirmation sheet and wait for result
+                    final notes = await showModalBottomSheet<String?>(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (_) => DeliveryConfirmationSheet(
+                        customerName: delivery['customerName'] ?? 'Cliente',
+                        address: delivery['address'] ?? '',
                       ),
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('🎉 Todas as entregas concluídas!'),
-                      backgroundColor: Colors.green,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              },
-            ),
-        ],
+                    );
+
+                    // User cancelled
+                    if (notes == null || !mounted) return;
+
+                    // 2. Mark as delivered (with optional notes)
+                    await context.read<DeliveryCubit>().updateStatus(
+                      delivery['id'],
+                      'DELIVERED',
+                      notes: notes.isNotEmpty ? notes : null,
+                    );
+                    if (!mounted) return;
+
+                    // 3. Find next pending delivery for auto-advance
+                    final state = context.read<DeliveryCubit>().state;
+                    dynamic nextDelivery;
+                    if (state is DeliveryLoaded) {
+                      try {
+                        nextDelivery = state.deliveries.firstWhere(
+                          (d) => d['id'] != delivery['id'] && d['status'] != 'DELIVERED',
+                        );
+                      } catch (_) {
+                        nextDelivery = null;
+                      }
+                    }
+
+                    if (nextDelivery != null) {
+                      final location = nextDelivery['location'];
+                      double lat = -23.5505;
+                      double lon = -46.6333;
+                      if (location != null && location is Map && location['coordinates'] != null) {
+                        final coords = location['coordinates'] as List;
+                        if (coords.length >= 2) {
+                          lon = (coords[0] as num).toDouble();
+                          lat = (coords[1] as num).toDouble();
+                        }
+                      }
+                      final captureLat = lat;
+                      final captureLon = lon;
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('✅ Entregue! Próxima: ${nextDelivery['customerName']}'),
+                          backgroundColor: const Color(0xFF1E293B),
+                          behavior: SnackBarBehavior.floating,
+                          duration: const Duration(seconds: 6),
+                          action: SnackBarAction(
+                            label: 'Navegar',
+                            textColor: const Color(0xFFF97316),
+                            onPressed: () => MapLauncherUtils.openGoogleMapsNavigation(
+                              context, captureLat, captureLon,
+                            ),
+                          ),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('🎉 Todas as entregas concluídas!'),
+                          backgroundColor: Colors.green,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -393,16 +469,37 @@ class _SummaryItem extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
 
-  const _SummaryItem({required this.label, required this.value, required this.color});
+  const _SummaryItem({
+    required this.label, 
+    required this.value, 
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.white54)),
-      ],
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: isSelected ? color.withValues(alpha: 0.5) : Colors.transparent),
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(color: Colors.white54, fontSize: 13)),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -10,5 +10,6 @@ export declare class DeliveriesService {
     findAll(): Promise<Delivery[]>;
     findOne(id: string): Promise<Delivery>;
     update(id: string, updateDto: UpdateDeliveryDto): Promise<Delivery>;
+    findHistory(id: string): Promise<DeliveryStatusHistory[]>;
     remove(id: string): Promise<void>;
 }

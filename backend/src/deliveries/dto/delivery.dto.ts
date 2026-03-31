@@ -29,4 +29,9 @@ export class UpdateDeliveryDto {
 
   @IsOptional()
   currentCoords?: any; // For status update auditing
+
+  @IsString()
+  @IsOptional()
+  notes?: string; // Driver observation at time of status change
 }
+

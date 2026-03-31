@@ -40,6 +40,10 @@ __decorate([
     __metadata("design:type", String)
 ], DeliveryStatusHistory.prototype, "coords", void 0);
 __decorate([
+    (0, typeorm_1.Column)({ type: 'text', nullable: true }),
+    __metadata("design:type", String)
+], DeliveryStatusHistory.prototype, "notes", void 0);
+__decorate([
     (0, typeorm_1.CreateDateColumn)(),
     __metadata("design:type", Date)
 ], DeliveryStatusHistory.prototype, "timestamp", void 0);

@@ -9,4 +9,5 @@ export declare class CreateDeliveryDto {
 export declare class UpdateDeliveryDto {
     status?: DeliveryStatus;
     currentCoords?: any;
+    notes?: string;
 }
