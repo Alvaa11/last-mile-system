@@ -7,6 +7,7 @@ import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/man
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_confirmation_sheet.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_history_sheet.dart';
 import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/delivery_failure_sheet.dart';
+import 'package:last_mile_mobile/features/delivery_list/presentation/widgets/street_deliveries_sheet.dart';
 
 class DeliveryListPage extends StatefulWidget {
   const DeliveryListPage({super.key});
@@ -213,7 +214,7 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
         _buildSummaryCard(pending, failed, delivered),
         const SizedBox(height: 24),
         if (_selectedTab == 'PENDING' && filteredDeliveries.isNotEmpty) ...[
-          _buildNextDeliveryHeader(context, filteredDeliveries.first),
+          _buildNextStreetBanner(filteredDeliveries),
           const SizedBox(height: 24),
         ],
         if (filteredDeliveries.isEmpty)
@@ -225,7 +226,10 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
               padding: const EdgeInsets.only(bottom: 16),
               itemCount: filteredDeliveries.length,
               separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) => _buildDeliveryCard(filteredDeliveries[index]),
+              itemBuilder: (context, index) => _buildDeliveryCard(
+                filteredDeliveries[index],
+                orderNumber: _selectedTab == 'PENDING' ? index + 1 : null,
+              ),
             ),
           ),
       ],
@@ -269,7 +273,7 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
     );
   }
 
-  Widget _buildDeliveryCard(dynamic delivery) {
+  Widget _buildDeliveryCard(dynamic delivery, {int? orderNumber}) {
     final bool isDelivered = delivery['status'] == 'DELIVERED';
     final bool isFailed = delivery['status'] == 'FAILED';
     final String rawAddress = delivery['address'] ?? 'Endereço Indisponível';
@@ -307,12 +311,36 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFF334155),
-                  child: Icon(
-                    isDelivered ? Icons.check_circle : isFailed ? Icons.error_outline : Icons.location_on, 
-                    color: isDelivered ? Colors.green : isFailed ? Colors.redAccent : const Color(0xFFF97316)
-                  ),
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: const Color(0xFF334155),
+                      child: Icon(
+                        isDelivered ? Icons.check_circle : isFailed ? Icons.error_outline : Icons.location_on, 
+                        color: isDelivered ? Colors.green : isFailed ? Colors.redAccent : const Color(0xFFF97316)
+                      ),
+                    ),
+                    if (orderNumber != null)
+                      Positioned(
+                        top: -6,
+                        right: -6,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFF97316),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              '$orderNumber',
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -501,62 +529,116 @@ class _DeliveryListPageState extends State<DeliveryListPage> {
     );
   }
 
-  Widget _buildNextDeliveryHeader(BuildContext context, dynamic delivery) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFF97316).withOpacity(0.5)),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFFF97316).withOpacity(0.1), blurRadius: 10, spreadRadius: 2)
-        ]
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-               Icon(Icons.directions_car, color: Color(0xFFF97316)),
-               SizedBox(width: 8),
-               Text('Próxima Entrega', style: TextStyle(color: Color(0xFFF97316), fontWeight: FontWeight.bold, fontSize: 16)),
-            ],
+  /// Extract just "Street Name" from an address like "Street Name, 100, City, ST - Complement"
+  String _extractStreetName(String address) {
+    final withoutComplement = address.split(' - ').first;
+    final parts = withoutComplement.split(',');
+    return parts.first.trim();
+  }
+
+  /// Strips common street prefixes (Rua, Av, etc.) and lowercases for fuzzy grouping.
+  String _normalizeStreetName(String name) {
+    const prefixes = ['rua ', 'av. ', 'av ', 'avenida ', 'al. ', 'al ', 'alameda ', 'r. ', 'rod. ', 'rodovia ', 'estr. ', 'estrada '];
+    final lower = name.toLowerCase().trim();
+    for (final prefix in prefixes) {
+      if (lower.startsWith(prefix)) {
+        return lower.substring(prefix.length).trim();
+      }
+    }
+    return lower;
+  }
+
+  Widget _buildNextStreetBanner(List<dynamic> pendingDeliveries) {
+    final firstDelivery = pendingDeliveries.first;
+    final nextStreet = _extractStreetName(firstDelivery['address'] ?? '');
+    final nextStreetNorm = _normalizeStreetName(nextStreet);
+
+    // Build a global order map: id -> 1-based position in all pending deliveries
+    final Map<String, int> orderMap = {};
+    for (var i = 0; i < pendingDeliveries.length; i++) {
+      orderMap[pendingDeliveries[i]['id'].toString()] = i + 1;
+    }
+
+    // Collect all deliveries on the same street (normalized match)
+    final streetDeliveries = pendingDeliveries
+        .where((d) => _normalizeStreetName(_extractStreetName(d['address'] ?? '')) == nextStreetNorm)
+        .toList();
+
+    final count = streetDeliveries.length;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => BlocProvider.value(
+            value: context.read<DeliveryCubit>(),
+            child: StreetDeliveriesSheet(
+              streetName: nextStreet,
+              deliveries: streetDeliveries,
+              orderMap: orderMap,
+            ),
           ),
-          const SizedBox(height: 16),
-          Text(delivery['customerName'] ?? 'Cliente Atual', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
-          Text(delivery['address'] ?? 'Endereço', style: const TextStyle(color: Colors.white54, fontSize: 14)),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              onPressed: () {
-                final location = delivery['location'];
-                double lat = -23.5505;
-                double lon = -46.6333;
-                if (location != null && location is Map && location['coordinates'] != null) {
-                   final coords = location['coordinates'] as List;
-                   if (coords.length >= 2) {
-                     lon = (coords[0] as num).toDouble();
-                     lat = (coords[1] as num).toDouble();
-                   }
-                }
-                MapLauncherUtils.openGoogleMapsNavigation(context, lat, lon);
-              },
-              icon: const Icon(Icons.navigation),
-              label: const Text('Ir para Próxima Entrega', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF97316),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E293B),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFF97316).withValues(alpha: 0.5)),
+          boxShadow: [
+            BoxShadow(color: const Color(0xFFF97316).withValues(alpha: 0.1), blurRadius: 10, spreadRadius: 2),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF97316).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(Icons.directions_car, color: Color(0xFFF97316), size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Próxima rua', style: TextStyle(color: Color(0xFFF97316), fontWeight: FontWeight.bold, fontSize: 13)),
+                  const SizedBox(height: 4),
+                  Text(
+                    nextStreet,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 17),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$count ${count == 1 ? 'entrega nesta rua' : 'entregas nesta rua'}',
+                    style: const TextStyle(color: Colors.white54, fontSize: 13),
+                  ),
+                ],
               ),
             ),
-          )
-        ],
-      )
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.expand_more, color: Colors.white54, size: 22),
+            ),
+          ],
+        ),
+      ),
     );
   }
+
 }
 
 class _SummaryItem extends StatelessWidget {
